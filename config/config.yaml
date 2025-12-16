@@ -1,0 +1,32 @@
+kafka:
+  topics:
+    cam_stream_1:
+      name: 'cam_stream_1'
+      partitions: 5
+    cam_stream_2:
+      name: 'cam_stream_2'
+      partitions: 5
+    cam_stream_3:
+      name: 'cam_stream_3'
+      partitions: 5
+
+  servers:
+    host: "localhost"
+    port: "9092"
+
+  topic_creation:
+    replication_factor: 1
+    default_partition: 3
+    retention_ms: 604800000
+    segment_bytes: 1073741824
+    message.max.bytes: 10485760
+
+producer:
+  video_source_dir: 'data/videos'
+  cameras_to_stream: ['cam01', 'cam02', 'cam03']
+  frame_rate_limit: 30
+
+milvus:
+  host: "localhost"
+  port: "19531"
+  collection_name: "vehicle_reid"

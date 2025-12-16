@@ -1,0 +1,6 @@
+ultralytics
+confluent-kafka
+PyYAML
+dotenv-python
+supervision
+pymilvus

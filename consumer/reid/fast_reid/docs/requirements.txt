@@ -1,0 +1,14 @@
+matplotlib
+scipy
+Pillow
+numpy
+prettytable
+easydict
+scikit-learn
+pyyaml
+termcolor
+tabulate
+tensorboard
+opencv-python
+yacs
+faiss-cpu
