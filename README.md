@@ -137,7 +137,7 @@ During runtime, the system generates:
 
 ### 6) Contributing
 
-Contact: **phamanhkiet97@gmail.com**
+Contact: **phamanhkiet97123@gmail.com**
 
 ### 7) License
 
