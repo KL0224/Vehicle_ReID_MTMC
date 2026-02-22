@@ -7,4 +7,4 @@ MODEL:
     WITH_IBN: False
     PRETRAIN: True
 
-OUTPUT_DIR: projects/NAIC20/logs/nest101-128x256
+OUTPUT_DIR: projects/NAIC20/log_veri_last/nest101-128x256

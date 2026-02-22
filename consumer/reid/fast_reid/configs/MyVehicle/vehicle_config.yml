@@ -1,0 +1,46 @@
+_BASE_: "../Base-bagtricks.yml"
+
+INPUT:
+  SIZE_TRAIN: [256, 256]
+  SIZE_TEST: [256, 256]
+  REA:
+    ENABLED: True
+    PROB: 0.5
+
+MODEL:
+  WEIGHTS: "models/model_best.pth"
+
+  BACKBONE:
+    NAME: "build_resnet_backbone"
+    DEPTH: 50x
+    WITH_IBN: True
+    PRETRAIN: False
+
+  HEADS:
+    NAME: "EmbeddingHead"
+    NUM_CLASSES: 0
+    POOL_LAYER: "GeneralizedMeanPooling"
+    WITH_BNNECK: True
+
+  LOSSES:
+    NAME: ("CrossEntropyLoss", "TripletLoss",)
+    TRI:
+      HARD_MINING: True
+      MARGIN: 0.3
+
+DATASETS:
+  NAMES: ("MyVehicleDataset",)
+  TESTS: ("MyVehicleDataset",)
+
+SOLVER:
+  OPT: "Adam"
+  MAX_EPOCH: 60
+  BASE_LR: 0.00035
+  IMS_PER_BATCH: 16
+  STEPS: [30, 50]
+  WARMUP_ITERS: 1000
+  CHECKPOINT_PERIOD: 10
+  AMP:
+    ENABLED: False
+
+OUTPUT_DIR: "/kaggle/working/logs_veri"

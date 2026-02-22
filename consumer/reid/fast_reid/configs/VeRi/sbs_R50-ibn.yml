@@ -32,4 +32,4 @@ TEST:
   EVAL_PERIOD: 10
   IMS_PER_BATCH: 256
 
-OUTPUT_DIR: logs/veri/sbs_R50-ibn
+OUTPUT_DIR: log_veri_last/veri/sbs_R50-ibn

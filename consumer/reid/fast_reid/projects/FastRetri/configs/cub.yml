@@ -32,4 +32,4 @@ DATASETS:
   NAMES: ("CUB",)
   TESTS: ("CUB",)
 
-OUTPUT_DIR: projects/FastRetri/logs/r50-base_cub
+OUTPUT_DIR: projects/FastRetri/log_veri_last/r50-base_cub

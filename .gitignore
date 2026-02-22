@@ -1,9 +1,9 @@
 .venv
 checkpoints
 models
-tracking_results
+tracking_results_old
 volumes
-test.py
 data
 .idea
-
+log
+/results/

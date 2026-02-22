@@ -7,7 +7,7 @@ MODEL:
     FEAT_DIM: 512
     WITH_IBN: True
 
-  WEIGHTS: projects/NAIC20/logs/reproduce/r34-tripletx10/model_best.pth
+  WEIGHTS: projects/NAIC20/log_veri_last/reproduce/r34-tripletx10/model_best_1.pth
 
 DATASETS:
   TESTS: ("NAIC20_R2A",)
@@ -24,4 +24,4 @@ TEST:
 
   SAVE_DISTMAT: True
 
-OUTPUT_DIR: projects/NAIC20/logs/r34_ibn-128x256-submit
+OUTPUT_DIR: projects/NAIC20/log_veri_last/r34_ibn-128x256-submit

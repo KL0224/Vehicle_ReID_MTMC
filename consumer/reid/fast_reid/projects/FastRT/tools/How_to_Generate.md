@@ -18,7 +18,7 @@ In this part you need to convert the pytorch model to '.wts' file using `gen_wts
     ```bash
     python projects/FastRT/tools/gen_wts.py --config-file='config/you/use/in/fastreid/xxx.yml' \
     --verify --show_model --wts_path='outputs/trt_model_file/xxx.wts' \
-    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best.pth' MODEL.DEVICE "cuda:0"
+    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best_1.pth' MODEL.DEVICE "cuda:0"
     ```
 
     then you can check the TensorRT model weights `outputs/trt_model_file/xxx.wts`.
@@ -33,7 +33,7 @@ In this part you need to convert the pytorch model to '.wts' file using `gen_wts
     ```bash
     python projects/FastRT/tools/gen_wts.py --config-file='configs/DukeMTMC/sbs_R50-ibn.yml' \
     --verify --show_model --wts_path='outputs/trt_model_file/sbs_R50-ibn.wts' \
-    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best.pth' MODEL.DEVICE "cuda:0"
+    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best_1.pth' MODEL.DEVICE "cuda:0"
     ```
     
 + Ex2. `sbs_R50`
@@ -41,7 +41,7 @@ In this part you need to convert the pytorch model to '.wts' file using `gen_wts
     ```bash
     python projects/FastRT/tools/gen_wts.py --config-file='configs/DukeMTMC/sbs_R50.yml' \
     --verify --show_model --wts_path='outputs/trt_model_file/sbs_R50.wts' \
-    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best.pth' MODEL.DEVICE "cuda:0"
+    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best_1.pth' MODEL.DEVICE "cuda:0"
     ``` 
     
 * Ex3. `sbs_r34_distill`
@@ -49,7 +49,7 @@ In this part you need to convert the pytorch model to '.wts' file using `gen_wts
     ```bash
     python projects/FastRT/tools/gen_wts.py --config-file='projects/FastDistill/configs/sbs_r34.yml' \
     --verify --show_model --wts_path='outputs/to/trt_model_file/sbs_r34_distill.wts' \
-    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best.pth' MODEL.DEVICE "cuda:0"
+    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best_1.pth' MODEL.DEVICE "cuda:0"
     ```
 
 * Ex4.`kd-r34-r101_ibn`
@@ -57,7 +57,7 @@ In this part you need to convert the pytorch model to '.wts' file using `gen_wts
     ```bash
     python projects/FastRT/tools/gen_wts.py --config-file='projects/FastDistill/configs/kd-sbs_r101ibn-sbs_r34.yml' \
     --verify --show_model --wts_path='outputs/to/trt_model_file/kd_r34_distill.wts' \
-    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best.pth' MODEL.DEVICE "cuda:0"
+    MODEL.WEIGHTS '/path/to/checkpoint_file/model_best_1.pth' MODEL.DEVICE "cuda:0"
     ```
 
 ## Acknowledgements

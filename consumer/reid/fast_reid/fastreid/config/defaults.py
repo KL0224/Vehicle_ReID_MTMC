@@ -320,7 +320,7 @@ _C.TEST.PRECISE_BN.NUM_ITER = 300
 # ---------------------------------------------------------------------------- #
 # Misc options
 # ---------------------------------------------------------------------------- #
-_C.OUTPUT_DIR = "logs/"
+_C.OUTPUT_DIR = "log_veri_last/"
 
 # Benchmark different cudnn algorithms.
 # If input images have very different sizes, this option will have large overhead

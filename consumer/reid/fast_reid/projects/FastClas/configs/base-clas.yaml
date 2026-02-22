@@ -73,4 +73,4 @@ DATASETS:
   NAMES: ("Hymenoptera",)
   TESTS: ("Hymenoptera",)
 
-OUTPUT_DIR: projects/FastClas/logs/r18_demo
+OUTPUT_DIR: projects/FastClas/log_veri_last/r18_demo

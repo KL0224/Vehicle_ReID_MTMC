@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fast_reid.fastreid.config import get_cfg
 from fast_reid.fastreid.engine import DefaultPredictor
 from fast_reid.fastreid.data.transforms import build_transforms
-from utils import setup_logger
+from log_utils import setup_logger
 
 logger = setup_logger(__name__, "extractor.log")
 
@@ -115,6 +115,7 @@ class EmbeddingExtractor:
 
         # Lấy top K - crops
         selected_crops = crops[:min(top_k, len(crops))]
+        logger.info(f"Tiến hành trích xuất embedding cho {len(selected_crops)}")
 
         embeddings = []
         for idx, crop_array in enumerate(selected_crops):

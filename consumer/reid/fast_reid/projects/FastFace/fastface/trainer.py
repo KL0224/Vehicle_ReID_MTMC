@@ -82,7 +82,7 @@ class FaceTrainer(DefaultTrainer):
             self.pfc_scheduler = self.build_lr_scheduler(cfg, self.pfc_optimizer, self.iters_per_epoch)
 
         self.checkpointer = Checkpointer(
-            # Assume you want to save checkpoints together with logs/statistics
+            # Assume you want to save checkpoints together with log_veri_last/statistics
             model,
             cfg.OUTPUT_DIR,
             save_to_disk=comm.is_main_process(),

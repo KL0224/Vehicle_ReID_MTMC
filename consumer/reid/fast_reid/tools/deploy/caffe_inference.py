@@ -21,12 +21,12 @@ def get_parser():
 
     parser.add_argument(
         "--model-def",
-        default="logs/test_caffe/baseline_R50.prototxt",
+        default="log_veri_last/test_caffe/baseline_R50.prototxt",
         help="caffe model prototxt"
     )
     parser.add_argument(
         "--model-weights",
-        default="logs/test_caffe/baseline_R50.caffemodel",
+        default="log_veri_last/test_caffe/baseline_R50.caffemodel",
         help="caffe model weights"
     )
     parser.add_argument(

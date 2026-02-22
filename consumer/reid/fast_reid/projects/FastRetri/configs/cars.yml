@@ -32,4 +32,4 @@ DATASETS:
   NAMES: ("Cars196",)
   TESTS: ("Cars196",)
 
-OUTPUT_DIR: projects/FastRetri/logs/r50-base_cars
+OUTPUT_DIR: projects/FastRetri/log_veri_last/r50-base_cars

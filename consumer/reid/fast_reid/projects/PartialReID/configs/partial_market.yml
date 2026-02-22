@@ -70,4 +70,4 @@ TEST:
 
 CUDNN_BENCHMARK: True
 
-OUTPUT_DIR: projects/PartialReID/logs/test_partial
+OUTPUT_DIR: projects/PartialReID/log_veri_last/test_partial

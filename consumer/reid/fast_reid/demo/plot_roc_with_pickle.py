@@ -11,8 +11,8 @@ sys.path.append('')
 from fastreid.utils.visualizer import Visualizer
 
 if __name__ == "__main__":
-    baseline_res = Visualizer.load_roc_info("logs/duke_vis/roc_info.pickle")
-    mgn_res = Visualizer.load_roc_info("logs/mgn_duke_vis/roc_info.pickle")
+    baseline_res = Visualizer.load_roc_info("log_veri_last/duke_vis/roc_info.pickle")
+    mgn_res = Visualizer.load_roc_info("log_veri_last/mgn_duke_vis/roc_info.pickle")
 
     fig = Visualizer.plot_roc_curve(baseline_res['fpr'], baseline_res['tpr'], name='baseline')
     Visualizer.plot_roc_curve(mgn_res['fpr'], mgn_res['tpr'], name='mgn', fig=fig)

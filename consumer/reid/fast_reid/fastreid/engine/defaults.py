@@ -221,7 +221,7 @@ class DefaultTrainer(TrainerBase):
         # Assume no other objects need to be checkpointed.
         # We can later make it checkpoint the stateful hooks
         self.checkpointer = Checkpointer(
-            # Assume you want to save checkpoints together with logs/statistics
+            # Assume you want to save checkpoints together with log_veri_last/statistics
             model,
             cfg.OUTPUT_DIR,
             save_to_disk=comm.is_main_process(),

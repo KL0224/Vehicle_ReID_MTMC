@@ -4,3 +4,5 @@ PyYAML
 dotenv-python
 supervision
 pymilvus
+torch
+

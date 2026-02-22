@@ -7,7 +7,7 @@ from glob import glob
 class TestFeatureAlign(unittest.TestCase):
     def test_caffe_pytorch_feat_align(self):
         caffe_feat_path = "/export/home/lxy/cvpalgo-fast_reid/tools/deploy/caffe_R50_output"
-        pytorch_feat_path = "/export/home/lxy/cvpalgo-fast_reid/demo/logs/R50_256x128_pytorch_feat_output"
+        pytorch_feat_path = "/export/home/lxy/cvpalgo-fast_reid/demo/log_veri_last/R50_256x128_pytorch_feat_output"
         feat_filenames = os.listdir(caffe_feat_path)
         for feat_name in feat_filenames:
             caffe_feat = np.load(os.path.join(caffe_feat_path, feat_name))

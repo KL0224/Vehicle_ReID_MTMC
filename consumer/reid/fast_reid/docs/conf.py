@@ -73,7 +73,7 @@ try:
 except ImportError:
     for m in [
         "torch", "torchvision", "torch.nn", "torch.nn.parallel", "torch.distributed", "torch.multiprocessing", "torch.autograd",
-        "torch.autograd.function", "torch.nn.modules", "torch.nn.modules.utils", "torch.utils", "torch.utils.data", "torch.onnx",
+        "torch.autograd.function", "torch.nn.modules", "torch.nn.modules.log_utils", "torch.log_utils", "torch.log_utils.data", "torch.onnx",
         "torchvision", "torchvision.ops",
     ]:
         sys.modules[m] = mock.Mock(name=m)

@@ -8,11 +8,11 @@ MODEL:
     WITH_IBN: False
 
 KD:
-  MODEL_CONFIG: ("projects/FastDistill/logs/dukemtmc/r101_ibn/config.yaml",)
-  MODEL_WEIGHTS: ("projects/FastDistill/logs/dukemtmc/r101_ibn/model_best.pth",)
+  MODEL_CONFIG: ("projects/FastDistill/log_veri_last/dukemtmc/r101_ibn/config.yaml",)
+  MODEL_WEIGHTS: ("projects/FastDistill/log_veri_last/dukemtmc/r101_ibn/model_best_1.pth",)
 
 DATASETS:
   NAMES: ("DukeMTMC",)
   TESTS: ("DukeMTMC",)
 
-OUTPUT_DIR: projects/FastDistill/logs/dukemtmc/kd-r34-r101_ibn
+OUTPUT_DIR: projects/FastDistill/log_veri_last/dukemtmc/kd-r34-r101_ibn

@@ -4,4 +4,4 @@ DATASETS:
   NAMES: ("PA100K",)
   TESTS: ("PA100K",)
 
-OUTPUT_DIR: projects/FastAttr/logs/pa100k/strong_baseline
+OUTPUT_DIR: projects/FastAttr/log_veri_last/pa100k/strong_baseline

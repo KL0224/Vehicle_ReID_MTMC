@@ -2,13 +2,13 @@ kafka:
   topics:
     cam_stream_1:
       name: 'cam_stream_1'
-      partitions: 5
+      partitions: 1
     cam_stream_2:
       name: 'cam_stream_2'
-      partitions: 5
+      partitions: 1
     cam_stream_3:
       name: 'cam_stream_3'
-      partitions: 5
+      partitions: 1
 
   servers:
     host: "localhost"
@@ -24,7 +24,7 @@ kafka:
 producer:
   video_source_dir: 'data/videos'
   cameras_to_stream: ['cam01', 'cam02', 'cam03']
-  frame_rate_limit: 30
+  frame_rate_limit: 10
 
 milvus:
   host: "localhost"

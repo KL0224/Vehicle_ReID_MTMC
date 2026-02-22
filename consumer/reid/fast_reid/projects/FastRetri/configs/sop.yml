@@ -16,4 +16,4 @@ DATASETS:
   NAMES: ("SOP",)
   TESTS: ("SOP",)
 
-OUTPUT_DIR: projects/FastRetri/logs/r50-base_sop
+OUTPUT_DIR: projects/FastRetri/log_veri_last/r50-base_sop

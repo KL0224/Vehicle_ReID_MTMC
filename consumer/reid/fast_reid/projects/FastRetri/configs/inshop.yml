@@ -20,4 +20,4 @@ DATASETS:
   NAMES: ("InShop",)
   TESTS: ("InShop",)
 
-OUTPUT_DIR: projects/FastRetri/logs/r50-base_inshop
+OUTPUT_DIR: projects/FastRetri/log_veri_last/r50-base_inshop

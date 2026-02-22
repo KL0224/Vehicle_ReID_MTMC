@@ -8,4 +8,4 @@ MODEL:
   HEADS:
     NUM_CLASSES: 23
 
-OUTPUT_DIR: projects/FastAttr/logs/dukemtmc/strong_baseline
+OUTPUT_DIR: projects/FastAttr/log_veri_last/dukemtmc/strong_baseline

@@ -8,4 +8,4 @@ MODEL:
     WITH_IBN: True
     PRETRAIN: True
 
-OUTPUT_DIR: projects/NAIC20/logs/r34_ibn-128x256
+OUTPUT_DIR: projects/NAIC20/log_veri_last/r34_ibn-128x256

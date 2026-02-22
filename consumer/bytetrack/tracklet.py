@@ -4,7 +4,7 @@ from collections import defaultdict
 import os
 import json
 import cv2
-from utils import setup_logger
+from log_utils import setup_logger
 
 logger = setup_logger(__name__, "tracklet.log")
 
@@ -21,7 +21,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 class Tracklet:
     """Tạo tracklet để lưu trư các frame object cho reid"""
-    def __init__(self, max_frame_per_track = 30, min_conf = 0.5, output_dir="tracking_output"):
+    def __init__(self, max_frame_per_track = 30, min_conf = 0.4, output_dir="tracking_output"):
         self.max_frame_per_track = max_frame_per_track
         self.min_conf = min_conf
         self.crops = defaultdict(list) # Lưu top K crop cho reid
@@ -42,103 +42,76 @@ class Tracklet:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def __getstate__(self):
-        """Serialize cho Spark checkpoint"""
-        return {
-            'crops': {k: v for k, v in self.crops.items()},
-            'metadata': {k: dict(v) for k, v in self.metadata.items()},
-            'prev_tracks_state': dict(self.prev_tracks_state),
-            'embeddings': dict(self.embeddings),
-            'global_ids': dict(self.global_ids),
-            'output_dir': self.output_dir,
-            'max_frame_per_track': self.max_frame_per_track,
-            'min_conf': self.min_conf,
-        }
+    def _calculate_blur_score(self, image):
+        """Tính độ nét của ảnh bằng Laplacian Variance"""
+        if image is None or image.size == 0: return 0.0
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return cv2.Laplacian(gray, cv2.CV_64F).var()
 
-    def __setstate__(self, state):
-        """Restore từ checkpoint"""
-        # Khôi phục lại defaultdict behavior
-        self.crops = defaultdict(list, state['crops'])
-        self.metadata = defaultdict(
-            lambda: {
-                "track_id": None,
-                "frame_id": [],
-                "bbox": [],
-                "conf": [],
-                "global_id": None,
-                "is_active": True,
-                "state_history": [],
-            },
-            state['metadata']
-        )
+    def should_reid(self, track_id: int, min_frames: int = 5, min_crops: int = 1, min_rep_conf: float = 0.3) -> bool:
+        """
+        Quality gate: only do ReID for tracks that are long enough and have usable crops.
+        This reduces fragmentation -> new global_id explosions.
+        """
+        meta = self.metadata.get(track_id)
+        if not meta:
+            return False
 
-        self.prev_tracks_state = state['prev_tracks_state']
-        self.embeddings = state.get('embeddings', {})
-        self.global_ids = state.get('global_ids', {})
-        self.output_dir = state['output_dir']
-        self.max_frame_per_track = state['max_frame_per_track']
-        self.min_conf = state['min_conf']
+        num_frames = len(meta.get("frame_id", []))
+        if num_frames < min_frames:
+            return False
+
+        crops = self.crops.get(track_id, [])
+        if len(crops) < min_crops:
+            return False
+
+        confs = meta.get("conf", [])
+        if not confs:
+            return False
+
+        rep_conf = float(np.max(confs))
+        if rep_conf < float(min_rep_conf):
+            return False
+
+        return True
 
     def update(self, track_id, frame, frame_id, bbox, conf):
-        """
-        Nhận track_id từ bytetrack, lưu metadata và crops
-        :param track_id: id của đối tượng
-        :param frame: frame chứa đối tượng đó để crop
-        :param frame_id: frame_id chứa đối tượng
-        :param bbox: danh sách bbox của đối tượng
-        :param conf: danh sách conf của đối tượng
-        """
-
-        if conf < self.min_conf:
-            return
-
         x1, y1, x2, y2 = map(float, bbox)
-        h, w = frame.shape[:2]
+        frame_h, frame_w = frame.shape[:2]
         x1, y1 = max(0, int(x1)), max(0, int(y1))
-        x2, y2 = min(w, int(x2)), min(h, int(y2))
+        x2, y2 = min(frame_w, int(x2)), min(frame_h, int(y2))
 
-        if x2 <= x1 or y2 <= y1:
-            logger.warning(f"Bbox không hợp lệ cho track {track_id}: ({x1},{y1},{x2},{y2})")
+        w_obj = x2 - x1
+        h_obj = y2 - y1
+        if w_obj <= 0 or h_obj <= 0 or w_obj * h_obj < 1200:
             return
 
+        # Always store metadata (for MOT/JSON and for ReID gating)
+        meta = self.metadata[track_id]
+        if meta["track_id"] is None:
+            meta["track_id"] = int(track_id)
+        meta["frame_id"].append(int(frame_id))
+        meta["bbox"].append([float(x1), float(y1), float(x2), float(y2)])
+        meta["conf"].append(float(conf))
+
+        # Crop only for ReID candidates
         crop_obj = frame[y1:y2, x1:x2]
-
-        # Kiểm tra crop có hợp lệ không
         if crop_obj is None or crop_obj.size == 0:
-            logger.warning(f"Crop rỗng cho track {track_id} tại frame {frame_id}")
             return
 
-        # crop_h, crop_w = crop_obj.shape[:2]
-        # if crop_h < 20 or crop_w < 20:
-        #     logger.warning(f"Crop quá nhỏ: {crop_h}, {crop_w}")
-        #     return
-        # aspect_ratio = crop_w / crop_h
-        # if aspect_ratio > 5  or aspect_ratio < 5:
-        #     logger.warning(f"Aspect ratio bất thường: {aspect_ratio:.2f}")
-        #     return
-
-        # Lưu crop cho reid
+        area = w_obj * h_obj
         self.crops[track_id].append(
             {
                 "crop": crop_obj,
                 "frame_id": int(frame_id),
-                "conf": float(conf) # Dùng cho sorted
+                "conf": float(conf),
+                "area": float(area),
             }
         )
 
-        # Chỉ lấy crop của max_frame_per_track
+        self.crops[track_id].sort(key=lambda x: (x["area"], x["conf"]), reverse=True)
         if len(self.crops[track_id]) > self.max_frame_per_track:
-            self.crops[track_id].sort(key=lambda crop: crop["conf"], reverse=True)
-            self.crops[track_id] = self.crops[track_id][:self.max_frame_per_track]
-
-        # Lưu metadata
-        meta = self.metadata[track_id]
-        if meta["track_id"] is None:
-            meta["track_id"] = int(track_id)
-
-        meta["frame_id"].append(int(frame_id))
-        meta["bbox"].append([float(x1), float(y1), float(x2), float(y2)])
-        meta["conf"].append(float(conf))
+            self.crops[track_id] = self.crops[track_id][: self.max_frame_per_track]
 
     def get_top_k_crops(self, track_id, k=5):
         """Lấy ra K crops tốt nhất cho REID"""
@@ -147,8 +120,34 @@ class Tracklet:
         sorted_crops = sorted(self.crops[track_id], key=lambda x: x["conf"], reverse=True)
         return [c["crop"] for c in sorted_crops[:k]]
 
-    def get_metadata(self, track_id):
-        return self.metadata.get(track_id)
+    def get_reid_payload(self, track_id: int, top_k: int = 5):
+        """
+        Trả về dữ liệu cần cho ReID worker
+        """
+        return {
+            "track_id": track_id,
+            "crops": self.get_top_k_crops(track_id, k=top_k),
+            "metadata": self.metadata.get(track_id)
+        }
+
+    def get_track_frame_range(self, track_id: int) -> tuple[int, int]:
+        """
+        Return `(frame_start, frame_end)` for the track.
+        Returns `(-1, -1)` if unavailable.
+        """
+        meta = self.metadata.get(track_id)
+        if not meta:
+            return -1, -1
+
+        frame_ids = meta.get("frame_id", [])
+        if not frame_ids:
+            return -1, -1
+
+        frame_start = int(frame_ids[0])
+        frame_end = int(frame_ids[-1])
+        if frame_start > frame_end:
+            frame_start, frame_end = frame_end, frame_start
+        return frame_start, frame_end
 
     def make_removed_tracks(self, current_tracks_state):
         """
@@ -203,8 +202,10 @@ class Tracklet:
         self.global_ids[track_id] = global_id
         logger.info(f"Track {track_id} --> global id {global_id}")
 
-    def clear_crops(self, track_id):
-        """Xoá crops và metadata để tránh track_id tái sử dụng bị dính lịch sử cũ"""
+    def remove_track_data(self, track_id):
+        """Xoá crops và metadata để giải phóng bộ nhớ"""
+
+        # Xóa crop
         if track_id in self.crops:
             num_crops = len(self.crops[track_id])
             total_pixels = sum(c['crop'].size for c in self.crops[track_id])
@@ -212,13 +213,13 @@ class Tracklet:
             del self.crops[track_id]
             logger.info(f"Track {track_id}: clear {num_crops} crops (~{memory_mb:.2f} MB)")
 
-        # Xoá luôn metadata và embedding để lần sau coi như track mới
-        if track_id in self.metadata:
-            del self.metadata[track_id]
+        # Xóa embeddings
         if track_id in self.embeddings:
             del self.embeddings[track_id]
-        if track_id in self.global_ids:
-            del self.global_ids[track_id]
+
+        # Xóa trạng thái cũ
+        if track_id in self.prev_tracks_state:
+            del self.prev_tracks_state[track_id]
 
     def export_to_json(self, cam_id, file_name=None):
         """Lưu trữ track ra file json"""
@@ -287,7 +288,7 @@ class Tracklet:
             conf = crop_data['conf']
             frame_id = crop_data['frame_id']
 
-            file_name = output_crops / f"track{track_id}_frame{frame_id}_conf{conf:.3f}.jpg"
+            file_name = output_crops / f"track_{track_id}.jpg"
 
             if crop is None or crop.size == 0:
                 logger.warning(f"Crop #{i} cho track {track_id} bị rỗng!")
@@ -322,7 +323,7 @@ class Tracklet:
 
         logger.info(f"Đã lưu {len(self.embeddings)} embeddinsg tại {file_path}")
 
-    def export_mot(self, cam_id, file_name=None):
+    def export_mot(self, cam_id, file_name=None, track_ids=None):
         """
         Export kết quả tracking sang định dạng MOT:
         frame, id, x, y, w, h, conf, -1, -1, -1
@@ -333,47 +334,62 @@ class Tracklet:
         else:
             file_path = os.path.join(self.output_dir, f"{file_name}.txt")
 
-        lines = []
+        # Đọc các dòng đã có trong file (nếu tồn tại)
+        existing_lines = set()
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                existing_lines = set(line.strip() for line in f if line.strip())
 
-        for track_id, meta in self.metadata.items():
-            # Bỏ qua nếu track không có detection
+        new_lines = []
+
+        # Chọn ids có trước hoặc lấy toàn bộ trong metadata
+        target_ids = track_ids if track_ids is not None else list(self.metadata.keys())
+
+        for track_id in target_ids:
+            if track_id not in self.metadata:
+                continue
+
+            meta = self.metadata[track_id]
             if not meta["frame_id"]:
                 continue
 
             frame_ids = meta["frame_id"]
             bboxes = meta["bbox"]
             confs = meta["conf"]
+            global_id = meta.get("global_id", None)
+
+            if global_id is None:
+                continue
+
+            tid = int(global_id)
 
             for frame_id, bbox, conf in zip(frame_ids, bboxes, confs):
                 x1, y1, x2, y2 = bbox
                 w = x2 - x1
                 h = y2 - y1
 
-                # Đảm bảo số thực
                 x, y, w, h = float(x1), float(y1), float(w), float(h)
                 conf = float(conf)
-                tid = int(track_id)
                 fid = int(frame_id)
 
                 # MOT: frame, id, x, y, w, h, conf, -1, -1, -1
-                line = f"{fid},{tid},{x:.2f},{y:.2f},{w:.2f},{h:.2f},{conf:.4f},-1,-1,-1\n"
-                lines.append(line)
+                line = f"{fid},{tid},{int(x)},{int(y)},{int(w)},{int(h)},{conf:.4f},-1,-1,-1"
 
-        # MOT thường yêu cầu sort theo frame, rồi theo id
-        lines.sort(key=lambda l: (int(l.split(",")[0]), int(l.split(",")[1])))
+                # Chỉ thêm nếu chưa tồn tại
+                if line not in existing_lines:
+                    new_lines.append(line)
+                    existing_lines.add(line)
 
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.writelines(lines)
+        if not new_lines and not existing_lines:
+            return file_path
 
-        logger.info(f"Đã export {len(lines)} detections sang file MOT: {file_path}")
+        # Gộp tất cả, sort theo frame_id và track_id, ghi đè file
+        all_lines = list(existing_lines)
+        all_lines.sort(key=lambda l: (int(l.split(",")[0]), int(l.split(",")[1])))
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            for line in all_lines:
+                f.write(line + '\n')
+
+        logger.info(f"Đã export {len(all_lines)} detections (unique) sang file MOT: {file_path}")
         return file_path
-
-
-
-
-
-
-
-
-
-

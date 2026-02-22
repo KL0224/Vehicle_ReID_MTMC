@@ -9,4 +9,4 @@ DATASETS:
   NAMES: ("DukeMTMC",)
   TESTS: ("DukeMTMC",)
 
-OUTPUT_DIR: logs/dukemtmc/bagtricks_R101-ibn
+OUTPUT_DIR: log_veri_last/dukemtmc/bagtricks_R101-ibn

@@ -18,7 +18,7 @@ This is a tiny example for converting fastreid-baseline in `meta_arch` to Caffe 
 1. Run `caffe_export.py` to get the converted Caffe model,
 
     ```bash
-    python tools/deploy/caffe_export.py --config-file configs/market1501/bagtricks_R50/config.yml --name baseline_R50 --output caffe_R50_model --opts MODEL.WEIGHTS logs/market1501/bagtricks_R50/model_final.pth
+    python tools/deploy/caffe_export.py --config-file configs/market1501/bagtricks_R50/config.yml --name baseline_R50 --output caffe_R50_model --opts MODEL.WEIGHTS log_veri_last/market1501/bagtricks_R50/model_final_1.pth
     ```
 
     then you can check the Caffe model and prototxt in `./caffe_R50_model`.
@@ -84,7 +84,7 @@ This is a tiny example for converting fastreid-baseline in `meta_arch` to ONNX m
 1. Run `onnx_export.py` to get the converted ONNX model,
 
     ```bash
-    python onnx_export.py --config-file root-path/bagtricks_R50/config.yml --name baseline_R50 --output outputs/onnx_model --opts MODEL.WEIGHTS root-path/logs/market1501/bagtricks_R50/model_final.pth
+    python onnx_export.py --config-file root-path/bagtricks_R50/config.yml --name baseline_R50 --output outputs/onnx_model --opts MODEL.WEIGHTS root-path/log_veri_last/market1501/bagtricks_R50/model_final_1.pth
     ```
 
     then you can check the ONNX model in `outputs/onnx_model`.

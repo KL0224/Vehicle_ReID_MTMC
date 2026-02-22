@@ -11,4 +11,4 @@ MODEL:
     PFC:
       ENABLED: True
 
-OUTPUT_DIR: projects/FastFace/logs/pfc0.1_insightface
+OUTPUT_DIR: projects/FastFace/log_veri_last/pfc0.1_insightface

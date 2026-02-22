@@ -10,4 +10,4 @@ DATASETS:
   NAMES: ("DukeMTMC",)
   TESTS: ("DukeMTMC",)
 
-OUTPUT_DIR: projects/FastDistill/logs/dukemtmc/r34
+OUTPUT_DIR: projects/FastDistill/log_veri_last/dukemtmc/r34

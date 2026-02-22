@@ -6,15 +6,15 @@ import numpy as np
 from confluent_kafka import Consumer, KafkaError
 import ast
 import threading
-from detection import load_model_detector
-from matching  import ReIDMatcher, MilvusManager
+from detection import load_model_detector, filter_boxes, get_zone_manager
+from matching import ReIDMatcher, MilvusManager
 import pathlib
 import supervision as sv
 from bytetrack import Tracklet
 from queue import Queue
 import sys
 import warnings
-from utils import setup_logger
+from log_utils import setup_logger
 
 logger = setup_logger(__name__, "job.log")
 
@@ -41,15 +41,14 @@ except Exception as e:
     sys.exit(1)
 
 # Cấu hình đường dẫn
-BASE_DIR = pathlib.Path(__file__).parent.parent  # K:\Python\Vehicle
+BASE_DIR = pathlib.Path(__file__).parent.parent
 CONFIG_PATH = BASE_DIR / "config" / "config.yaml"
-MODEL_PATH = BASE_DIR / "models" / "yolov8n.pt"
-REID_CONFIG = BASE_DIR / "consumer" /"reid" / "fast_reid" / "configs" / "VeRi" / "sbs_R50-ibn.yml"
+MODEL_PATH = BASE_DIR / "models" / "yolov8x.pt"
+REID_CONFIG = BASE_DIR / "consumer" / "reid" / "fast_reid" / "configs" / "VeRi" / "sbs_R50-ibn.yml"
 REID_WEIGHTS = BASE_DIR / "models" / "veri_sbs_R50-ibn.pth"
-
+ZONE_DIR = BASE_DIR / "data" / "zones"
 model_lock = threading.Lock()
-camera_windows = {}
-export_interval = 100
+
 
 def load_config(path=CONFIG_PATH):
     if not os.path.exists(path):
@@ -67,13 +66,13 @@ def embedding_worker(embedding_queue, extractor, tracklet_dict, reid_matcher):
             tracklet = tracklet_dict.get(cam_id)
 
             if not tracklet:
-                logger.warning(f"Không tìm thâ tracklet nào cho camera {cam_id}")
+                logger.warning(f"Không tìm thấy tracklet nào cho camera {cam_id}")
                 embedding_queue.task_done()
                 continue
 
-            crops = tracklet.get_top_k_crops(track_id, k=5)
+            crops = tracklet.get_top_k_crops(track_id, k=1)
 
-            if not crops:
+            if not crops or len(crops) < 1:
                 logger.warning(f"Track {track_id} (cam {cam_id}) không có crops")
                 embedding_queue.task_done()
                 continue
@@ -83,19 +82,27 @@ def embedding_worker(embedding_queue, extractor, tracklet_dict, reid_matcher):
                 embedding, metadata = extractor.extract_from_crops(crops, top_k=5, method="mean")
                 tracklet.save_embeddings(track_id, embedding)
 
+                frame_start, frame_end = tracklet.get_track_frame_range(track_id)
+                logger.info(f"Dùng frame range [{frame_start},{frame_end}] để matching")
+
                 # Matching
-                global_id = reid_matcher.match_or_create(
+                global_id = reid_matcher.match_and_update(
                     camera_id=cam_id,
                     local_track_id=track_id,
-                    embedding=embedding
+                    embedding=embedding,
+                    frame_start=frame_start,
+                    frame_end=frame_end,
                 )
 
                 # Lưu global_id vào tracklet
                 tracklet.save_global_id(track_id, global_id)
 
-                tracklet.clear_crops(track_id)
+                saved_files = tracklet.export_to_crops(cam_id, track_id)
+                if saved_files:
+                    logger.info(f"[Worker] Cam {cam_id} saved {len(saved_files)} crops for track #{track_id}")
 
-                logger.info(f"Camera {cam_id}, track {track_id} extract embedding: {len(embedding)}")
+                tracklet.remove_track_data(track_id)
+                logger.info(f"Camera {cam_id}, track {track_id} -> global_id: {global_id}")
             except Exception as e:
                 logger.error(f"Lỗi extract embedding Track {track_id}: {e}")
 
@@ -103,8 +110,13 @@ def embedding_worker(embedding_queue, extractor, tracklet_dict, reid_matcher):
 
         except Exception as e:
             logger.error(f"Embedding worker error: {e}")
+            try:
+                embedding_queue.task_done()
+            except Exception:
+                pass
 
-def consume_and_detect_per_camera(camera_id, topic, group_id, model, stats, embedding_queue, tracklet_dict):
+
+def consume_and_detect_per_camera(camera_id, topic, group_id, model, zone_manager, stats, embedding_queue, tracklet_dict):
     """Mỗi camera có consumer + worker riêng"""
 
     # Tạo consumer
@@ -115,6 +127,8 @@ def consume_and_detect_per_camera(camera_id, topic, group_id, model, stats, embe
         "enable.auto.commit": True,
         "max.poll.interval.ms": 300000,
         "session.timeout.ms": 45000,
+        "fetch.min.bytes": 1,
+        "fetch.wait.max.ms": 100,
     }
 
     consumer = Consumer(conf)
@@ -122,8 +136,14 @@ def consume_and_detect_per_camera(camera_id, topic, group_id, model, stats, embe
 
     logger.info(f"Camera {camera_id} started - Topic: {topic}")
 
-    # Tạo Tracklet
-    byte_tracker = sv.ByteTrack()
+    # Tạo ByteTrack và Tracklet
+    byte_tracker = sv.ByteTrack(
+        track_activation_threshold=0.40,
+        minimum_matching_threshold=0.70,
+        lost_track_buffer=90,
+        frame_rate=10,
+        minimum_consecutive_frames=3
+    )
 
     tracklet = Tracklet(
         max_frame_per_track=10,
@@ -133,19 +153,32 @@ def consume_and_detect_per_camera(camera_id, topic, group_id, model, stats, embe
 
     tracklet_dict[camera_id] = tracklet
 
-    processed = 0  # Đếm số frame xử lý
+    processed = 0
+    poll_timeout_count = 0
+    max_timeout = 30
     try:
         while True:
             msg = consumer.poll(timeout=1.0)
 
             if msg is None:
+                poll_timeout_count += 1
+                if poll_timeout_count % 100 == 0:
+                    logger.warning(f"Camera {camera_id}: {poll_timeout_count} poll timeouts, processed: {processed}")
+
+                if poll_timeout_count >= max_timeout:
+                    logger.info(
+                        f"Camera {camera_id}: idle {max_timeout:.0f}s (no messages), stopping to export results"
+                    )
+                    break
                 continue
 
+            poll_timeout_count = 0
             if msg.error():
                 if msg.error().code() == KafkaError._PARTITION_EOF:
-                    continue
+                    logger.info(f"Camera {camera_id}: Reached end of partition, processed: {processed}")
+                    break  # Hoặc continue tùy logic
                 else:
-                    print(f"Camera {camera_id} error: {msg.error()}")
+                    logger.error(f"Camera {camera_id} error: {msg.error()}")
                     break
 
             # Decode frame
@@ -162,19 +195,44 @@ def consume_and_detect_per_camera(camera_id, topic, group_id, model, stats, embe
             nparr = np.frombuffer(frame_bytes, np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             frame_id = metadata.get('frame_id', 'N/A')
-            logger.info(f"Camera {camera_id} frame_id: {frame_id}")
 
             if frame is None:
                 continue
 
-            # YOLOv8 detection
+            # === BƯỚC 1: YOLOv8 Detection ===
             with model_lock:
-                results = model(frame, verbose=False)
-            num_objects = len(results[0].boxes)
+                results = model(frame, verbose=False, conf=0.15)
 
-            # Tracking by bytetrack
-            detections = sv.Detections.from_ultralytics(results[0])
-            detections = byte_tracker.update_with_detections(detections)
+            boxes = results[0].boxes.xyxy.cpu().numpy()
+            class_ids = results[0].boxes.cls.cpu().numpy().astype(int)
+            scores = results[0].boxes.conf.cpu().numpy()
+
+            # === BƯỚC 2: Lọc chỉ giữ xe (vehicle classes) ===
+            boxes, class_ids, scores, _ = filter_boxes(boxes, class_ids, scores)
+
+            # === BƯỚC 3: Lọc theo zone ===
+            boxes, class_ids, scores, _ = zone_manager.filter_by_zone(
+                camera_id=camera_id,
+                boxes=boxes,
+                class_ids=class_ids,
+                scores=scores,
+            )
+
+            num_objects = len(boxes)
+
+            # === BƯỚC 4: Tracking với ByteTrack ===
+            if len(boxes) > 0:
+                # Tạo Detections thủ công từ filtered data
+                detections = sv.Detections(
+                    xyxy=boxes,
+                    confidence=scores,
+                    class_id=class_ids,
+                )
+                detections = byte_tracker.update_with_detections(detections)
+            else:
+                # Không có detection nào sau filter
+                detections = sv.Detections.empty()
+                byte_tracker.update_with_detections(detections)
 
             current_tracks_state = {}
 
@@ -197,61 +255,49 @@ def consume_and_detect_per_camera(camera_id, topic, group_id, model, stats, embe
                     current_tracks_state[track_id] = 2
 
             # Lưu metadata và crops
-            for track_id, bbox, conf in zip(detections.tracker_id, detections.xyxy, detections.confidence):
-                if track_id is not None and track_id >= 0:
-                    tracklet.update(
-                        track_id=track_id,
-                        frame=frame,
-                        frame_id=frame_id,
-                        bbox=bbox,
-                        conf=conf,
-                    )
+            if detections.tracker_id is not None:
+                for track_id, bbox, conf in zip(detections.tracker_id, detections.xyxy, detections.confidence):
+                    if track_id is not None and track_id >= 0:
+                        tracklet.update(
+                            track_id=track_id,
+                            frame=frame,
+                            frame_id=frame_id,
+                            bbox=bbox,
+                            conf=conf,
+                        )
 
             # Phát hiện tracklet removed và đẩy vào queue
             removed_tracks = tracklet.make_removed_tracks(current_tracks_state)
             for track_id in removed_tracks:
-                logger.info(f"Camera {camera_id} removed track {track_id} và chuyển vào queue")
-                embedding_queue.put((camera_id, track_id))
+                if tracklet.should_reid(track_id):
+                    logger.info(f"Camera {camera_id} removed track {track_id} and go to queue")
+                    embedding_queue.put((camera_id, track_id))
+                else:
+                    logger.info(f"Skip ReID track {track_id} (low quality)")
+                    tracklet.remove_track_data(track_id)
 
             processed += 1
             stats[camera_id] = processed
 
-            # Export JSON định kỳ
-            if processed % export_interval == 0:
-                logger.info("Exporting...")
-                logger.info(f"Exporting to json")
-                tracklet.export_to_json(camera_id)
-                logger.info(f"Exporting embeddings")
-                tracklet.export_embeddings(camera_id)
-                logger.info(f"[Camera {camera_id}] Exporting crops at frame {processed}...")
-                for track_id in tracklet.crops.keys():
-                    saved_files = tracklet.export_to_crops(camera_id, track_id)
-                    if saved_files:
-                        logger.info(f"[Camera {camera_id}] Saved {len(saved_files)} crops for track #{track_id}")
-
             if processed % 30 == 0:
                 logger.info(f"Camera {camera_id} | Frame: {frame_id} | "
-                      f"Objects: {num_objects} | Total: {processed}")
+                            f"Objects: {num_objects} | Total: {processed}")
 
     except KeyboardInterrupt:
         print(f"\nCamera {camera_id} stopped by user")
 
+
     finally:
         print(f"Saving final results for camera {camera_id}...")
-
-        # Export JSON
         tracklet.export_to_json(camera_id)
-
-        # Export crops cho TẤT CẢ tracks
-        logger.info(f"[Camera {camera_id}] Exporting crops for {len(tracklet.crops)} tracks...")
-
+        tracklet.export_mot(camera_id)
+        # Export crops còn lại (tracks chưa bị removed khi kết thúc)
+        logger.info(f"[Camera {camera_id}] Exporting remaining crops for {len(tracklet.crops)} tracks...")
         total_saved = 0
-        for track_id in tracklet.crops.keys():
+        for track_id in list(tracklet.crops.keys()):
             saved_files = tracklet.export_to_crops(camera_id, track_id)
             total_saved += len(saved_files)
-
-        logger.info(f"[Camera {camera_id}] Total crops saved: {total_saved}")
-
+        logger.info(f"[Camera {camera_id}] Total remaining crops saved: {total_saved}")
         consumer.close()
         logger.info(f"Camera {camera_id} stopped. Processed: {processed} frames")
 
@@ -273,10 +319,15 @@ def main():
     logger.info(f"Khởi động hệ thống ReID Multi-Camera")
     logger.info(f"Số cameras: {len(cameras)}\n")
 
-    # Load YOLOv8 model (chia sẻ giữa các threads)
+    # Load YOLOv8 model
     logger.info("Load model YOLO...")
     model = load_model_detector(MODEL_PATH)
     logger.info("Đã load model YOLO")
+
+    # Load ZoneManager
+    logger.info("Load zone masks...")
+    zone_manager = get_zone_manager(str(ZONE_DIR))
+    logger.info(f"Đã load {len(zone_manager.zone_masks)} zone masks")
 
     # Load model reid
     logger.info("Load model REID...")
@@ -285,21 +336,22 @@ def main():
         weights_path=str(REID_WEIGHTS),
         device="cuda",
     )
-
     logger.info("Đã load model REID!")
 
-    # Khởi tạo milvus và matcher
+    # Khởi tạo Milvus và ReIDMatcher
     logger.info("Đang khởi tạo database và matcher")
     milvus_manager = MilvusManager(
         host="localhost",
         port="19531",
-        collection_name="vehicle_reid"
+        collection_name="vehicle_reid",
+        init_collection=True,
+        drop_existing=True,
     )
 
     reid_matcher = ReIDMatcher(
-        milvus_manager=milvus_manager,
-        similarity_threshold=0.7,
-        time_window=300
+        milvus=milvus_manager,
+        fps=10,
+        similarity_threshold=0.6,
     )
 
     logger.info("Đã khởi tạo milvus và reid_matcher thành công")
@@ -322,7 +374,7 @@ def main():
     for cam_id, topic in cameras:
         t = threading.Thread(
             target=consume_and_detect_per_camera,
-            args=(cam_id, topic, group_id, model, stats, embedding_queue, tracklet_dict),
+            args=(cam_id, topic, group_id, model, zone_manager, stats, embedding_queue, tracklet_dict),
             name=f"Camera-{cam_id}"
         )
         t.daemon = True

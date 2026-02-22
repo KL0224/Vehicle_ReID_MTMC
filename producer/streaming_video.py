@@ -28,7 +28,7 @@ def stream_video_sampling_real_time(video_path, camera_id, topic, fps_target=FPS
         "bootstrap.servers": "localhost:9092",
         "linger.ms": 20,
         "compression.type": "snappy",
-        "message.max.bytes": 524288,
+        'message.max.bytes': 10485760,
         "batch.size": 1000000,
         "queue.buffering.max.messages": 100000,
     }

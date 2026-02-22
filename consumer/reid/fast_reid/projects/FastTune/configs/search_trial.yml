@@ -93,4 +93,4 @@ DATASETS:
 
 CUDNN_BENCHMARK: True
 
-OUTPUT_DIR: projects/FastTune/logs/trial
+OUTPUT_DIR: projects/FastTune/log_veri_last/trial

@@ -8,4 +8,4 @@ MODEL:
   HEADS:
     NUM_CLASSES: 27
 
-OUTPUT_DIR: projects/FastAttr/logs/market1501/strong_baseline
+OUTPUT_DIR: projects/FastAttr/log_veri_last/market1501/strong_baseline
